@@ -1,4 +1,4 @@
-name: firecrawl
+﻿name: firecrawl
 
 x-common-service: &common-service
   # NOTE: If you don't want to build the service locally,
@@ -11,7 +11,7 @@ x-common-service: &common-service
       soft: 65535
       hard: 65535
   networks:
-    - backend
+    - firecrawl-net
   extra_hosts:
     - "host.docker.internal:host-gateway"
 
@@ -58,7 +58,7 @@ services:
       PROXY_PASSWORD: ${PROXY_PASSWORD}
       BLOCK_MEDIA: ${BLOCK_MEDIA}
     networks:
-      - backend
+      - firecrawl-net
 
   api:
     <<: *common-service
@@ -67,6 +67,7 @@ services:
       HOST: "0.0.0.0"
       PORT: ${INTERNAL_PORT:-3002}
       WORKER_PORT: ${WORKER_PORT:-3005}
+      EXTRACT_WORKER_PORT: ${EXTRACT_WORKER_PORT:-3006}
       ENV: local
     depends_on:
       - redis
@@ -83,7 +84,7 @@ services:
     # image: valkey/valkey:alpine
 
     networks:
-      - backend
+      - firecrawl-net
     command: redis-server --bind 0.0.0.0
   
   nuq-postgres:
@@ -93,10 +94,25 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: postgres
     networks:
-      - backend
+      - firecrawl-net
     ports:
-      - "5432:5432"
+      - "5433:5432"
+
+  firecrawl-mcp:
+    image: mcp/firecrawl:latest
+    container_name: firecrawl-mcp
+    environment:
+      - FIRECRAWL_API_KEY=${FIRECRAWL_API_KEY:?Veuillez saisir votre FIRECRAWL_API_KEY avec `export FIRECRAWL_API_KEY=xxx`}
+      - FIRECRAWL_API_URL=http://api:3002
+    depends_on:
+      api:
+        condition: service_started
+    stdin_open: true
+    tty: true
+    networks:
+      - firecrawl-net
+    restart: unless-stopped
 
 networks:
-  backend:
+  firecrawl-net:
     driver: bridge
