@@ -1,0 +1,240 @@
+name: Publish Docker Images to Personal GHCR
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/api/**'
+      - 'apps/playwright-service-ts/**'
+      - 'apps/nuq-postgres/**'
+      - 'apps/redis/**'
+      - 'docker-compose.yaml'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to use for the images'
+        required: false
+        default: 'latest'
+        type: string
+
+env:
+  REGISTRY: ghcr.io
+  OWNER: cmoi936
+
+jobs:
+  build-and-push-api:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.OWNER }}/firecrawl-api
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=raw,value=${{ inputs.tag || 'latest' }},enable={{is_default_branch}}
+            type=sha,prefix={{branch}}-
+            type=raw,value=${{ github.event.inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }}
+
+      - name: Build and push API image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./apps/api
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-and-push-playwright:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.OWNER }}/playwright-service
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=raw,value=${{ inputs.tag || 'latest' }},enable={{is_default_branch}}
+            type=sha,prefix={{branch}}-
+            type=raw,value=${{ github.event.inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }}
+
+      - name: Build and push Playwright service image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./apps/playwright-service-ts
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-and-push-mcp:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull and push MCP image
+        run: |
+          # Pull the external MCP image
+          docker pull mcp/firecrawl:latest
+          
+          # Tag it for our registry
+          docker tag mcp/firecrawl:latest ${{ env.REGISTRY }}/${{ env.OWNER }}/firecrawl-mcp:latest
+          
+          # Push to our registry
+          docker push ${{ env.REGISTRY }}/${{ env.OWNER }}/firecrawl-mcp:latest
+
+  build-and-push-postgres:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.OWNER }}/nuq-postgres
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=raw,value=${{ inputs.tag || 'latest' }},enable={{is_default_branch}}
+            type=sha,prefix={{branch}}-
+            type=raw,value=${{ github.event.inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }}
+
+      - name: Build and push Postgres image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./apps/nuq-postgres
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-and-push-redis:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull and push Redis image
+        run: |
+          # Pull the official Redis Alpine image
+          docker pull redis:alpine
+          
+          # Tag it for our registry
+          docker tag redis:alpine ${{ env.REGISTRY }}/${{ env.OWNER }}/redis:alpine
+          
+          # Push to our registry
+          docker push ${{ env.REGISTRY }}/${{ env.OWNER }}/redis:alpine
+
+  update-docker-compose:
+    runs-on: ubuntu-latest
+    needs: [build-and-push-api, build-and-push-playwright, build-and-push-postgres, build-and-push-mcp, build-and-push-redis]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update docker-compose.yaml
+        run: |
+          sed -i 's|ghcr.io/firecrawl/firecrawl|ghcr.io/cmoi936/firecrawl-api|g' docker-compose.yaml
+          sed -i 's|ghcr.io/firecrawl/playwright-service|ghcr.io/cmoi936/playwright-service|g' docker-compose.yaml
+          sed -i 's|mcp/firecrawl:latest|ghcr.io/cmoi936/firecrawl-mcp:latest|g' docker-compose.yaml
+          sed -i 's|redis:alpine|ghcr.io/cmoi936/redis:alpine|g' docker-compose.yaml
+          # Pour nuq-postgres, remplacer build par image si elle n'existe pas encore
+          if ! grep -q "image: ghcr.io/cmoi936/nuq-postgres" docker-compose.yaml; then
+            sed -i 's|build: apps/nuq-postgres|image: ghcr.io/cmoi936/nuq-postgres:latest\n    # build: apps/nuq-postgres|g' docker-compose.yaml
+          fi
+
+      - name: Commit changes
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add docker-compose.yaml
+          if git diff --quiet && git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Update docker-compose.yaml to use published images from ghcr.io/cmoi936"
+            git push
+          fi
