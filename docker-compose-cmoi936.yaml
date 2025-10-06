@@ -40,8 +40,6 @@ services:
       POSTGRES_DB: postgres
     networks:
       - firecrawl-net
-    ports:
-      - "5433:5432"
 
   playwright-service:
     # NOTE: If you don't want to build the service locally,
@@ -95,7 +93,7 @@ services:
     image: ghcr.io/cmoi936/firecrawl-mcp:latest
     container_name: firecrawl-mcp
     environment:
-      - FIRECRAWL_API_KEY=${FIRECRAWL_API_KEY:?Veuillez saisir votre FIRECRAWL_API_KEY avec `export FIRECRAWL_API_KEY=xxx`}
+      - FIRECRAWL_API_KEY=${FIRECRAWL_API_KEY}
       - FIRECRAWL_API_URL=http://api:3002
     depends_on:
       api:
